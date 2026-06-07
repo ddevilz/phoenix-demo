@@ -9,4 +9,55 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pytest
-      - run: pytest -v
+      - name: Run tests
+        id: pytest
+        run: pytest -v 2>&1 | tee /tmp/pytest_out.txt; exit ${PIPESTATUS[0]}
+        continue-on-error: true
+
+      - name: Notify PhoenixOS on failure
+        if: steps.pytest.outcome == 'failure'
+        env:
+          PHOENIX_WEBHOOK_SECRET: ${{ secrets.PHOENIX_WEBHOOK_SECRET }}
+        run: |
+          python3 - <<'EOF'
+          import json, hmac, hashlib, urllib.request, os, subprocess
+
+          log = open("/tmp/pytest_out.txt").read()
+
+          changed = subprocess.check_output(
+              ["git", "diff", "--name-only", "HEAD~1", "HEAD"], text=True
+          ).strip().splitlines()
+
+          payload = {
+              "action": "completed",
+              "workflow_run": {
+                  "conclusion": "failure",
+                  "head_sha": os.environ.get("GITHUB_SHA", ""),
+                  "id": os.environ.get("GITHUB_RUN_ID", ""),
+                  "name": "CI",
+                  "updated_at": "",
+                  "log_tail": log,
+                  "changed_files": changed,
+              },
+              "repository": {"full_name": os.environ.get("GITHUB_REPOSITORY", "")},
+          }
+
+          body = json.dumps(payload).encode()
+          secret = os.environ.get("PHOENIX_WEBHOOK_SECRET", "").encode()
+          sig = "sha256=" + hmac.new(secret, body, hashlib.sha256).hexdigest()
+
+          req = urllib.request.Request(
+              "https://phoenixos.onrender.com/api/webhooks/github",
+              data=body,
+              headers={"Content-Type": "application/json", "X-Hub-Signature-256": sig},
+          )
+          try:
+              resp = urllib.request.urlopen(req, timeout=30)
+              print("PhoenixOS notified:", resp.read().decode())
+          except Exception as e:
+              print("PhoenixOS notify failed (non-blocking):", e)
+          EOF
+
+      - name: Fail build
+        if: steps.pytest.outcome == 'failure'
+        run: exit 1
