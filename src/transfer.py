@@ -10,7 +10,7 @@ DEFAULT_BUDGET_S = 30
 
 def simulate_transfer(payload: dict) -> int:
     """Return simulated elapsed seconds for a transfer. Baseline: fast."""
-    return 42
+    return 12
 
 
 def transfer_with_timeout(payload: dict, timeout_s: int = DEFAULT_BUDGET_S) -> dict:
