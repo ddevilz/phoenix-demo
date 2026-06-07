@@ -1,6 +1,6 @@
 """Connection pool for the demo transfer layer."""
 
-MAX_CONNECTIONS = 10
+MAX_CONNECTIONS = 0
 CONNECT_TIMEOUT_S = 5
 
 
