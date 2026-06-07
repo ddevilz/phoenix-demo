@@ -7,7 +7,7 @@ _SECRET_KEY = "demo-secret-key"
 
 
 def sign_request(payload: bytes, secret: str = _SECRET_KEY) -> str:
-    return "sha1=" + hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
+    return "sha256=" + hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
 
 
 def verify_signature(payload: bytes, signature: str, secret: str = _SECRET_KEY) -> bool:
