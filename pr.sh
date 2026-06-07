@@ -1,29 +1,21 @@
 #!/usr/bin/env bash
-# Demo script: creates a PR with three simultaneous regressions and prints the URL.
-# GitHub Actions fails → webhook fires → PhoenixOS ingests the failures.
+# Creates a branch + PR with regressions and prints the PR URL.
+# GitHub Actions fails → webhook fires → PhoenixOS ingests failures.
 # Run reset.sh to close the PR, delete the branch, and restore green.
 set -e
 cd "$(dirname "$0")"
+source lib/regressions.sh
 
 BRANCH="demo/break-$(date +%s)"
-
 git checkout -b "$BRANCH"
 
-# 1. Transfer timeout regression
-sed -i '' 's/return 12/return 42/' src/transfer.py
-
-# 2. Connection pool regression: limit → 0
-sed -i '' 's/MAX_CONNECTIONS = 10/MAX_CONNECTIONS = 0/' src/connection.py
-
-# 3. Auth regression: corrupt HMAC prefix
-sed -i '' 's/return "sha256=" + hmac/return "sha1=" + hmac/' src/auth.py
-
-git commit -am "perf: optimize transfer buffering and tighten pool limits"
+apply_regressions
+git commit -am "$REGRESSIONS_COMMIT_MSG"
 git push -u origin "$BRANCH"
 
 PR_URL=$(gh pr create \
-  --title "perf: optimize transfer buffering and tighten pool limits" \
-  --body "Reduces transfer budget, tightens connection pool, and updates auth signing." \
+  --title "$REGRESSIONS_PR_TITLE" \
+  --body "$REGRESSIONS_PR_BODY" \
   --base main \
   --head "$BRANCH")
 

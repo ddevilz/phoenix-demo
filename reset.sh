@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Restore the repo to green. Works after both break.sh (main) and pr.sh (branch).
+# Restores repo to green. Works after both break.sh (main) and pr.sh (branch).
 set -e
 cd "$(dirname "$0")"
+source lib/regressions.sh
 
 CURRENT=$(git branch --show-current)
 
@@ -14,11 +15,9 @@ fi
 
 git pull --rebase origin main 2>/dev/null || true
 
-sed -i '' 's/return 42/return 12/' src/transfer.py 2>/dev/null || true
-sed -i '' 's/MAX_CONNECTIONS = 0/MAX_CONNECTIONS = 10/' src/connection.py 2>/dev/null || true
-sed -i '' 's/return "sha1=" + hmac/return "sha256=" + hmac/' src/auth.py 2>/dev/null || true
+revert_regressions
 
-git commit -am "revert: restore transfer, pool, and auth to baseline" 2>/dev/null \
+git commit -am "revert: restore to baseline" 2>/dev/null \
   || { echo "already green"; exit 0; }
 git push
 echo "✅ Back to green."
