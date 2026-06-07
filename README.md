@@ -1,33 +1,72 @@
 # phoenix-demo
 
-Throwaway repo to drive a **live PhoenixOS demo**. A real GitHub Actions test
-suite that is green on `main` and fails on cue when you run `./break.sh`.
+Test repo for [PhoenixOS](https://phoenixos.onrender.com) — a live CI failure intelligence system.
 
-The failing test emits a **`transfer timeout regression`** message. PhoenixOS
-extracts that as a failure signature; because it resembles the seeded
-`curl/curl` `lib/transfer.c` timeout cluster, the new node arrives in the graph
-**connected by a `SIMILAR_TO` edge**, with a populated blast radius.
+Green on `main`. Run `./pr.sh` to introduce three simultaneous regressions as a Pull Request.
+PhoenixOS ingests the CI failure, extracts failure signatures via NVIDIA NIM, updates the memory
+graph, and scores the PR with 3 parallel AI judges.
 
-## Live demo
+---
 
-1. PhoenixOS running locally (`docker compose -f infra/docker-compose.yml up`), dashboard open, graph seeded.
-2. Tunnel exposing the core API: `cloudflared tunnel --url http://localhost:8000`.
-3. This repo's webhook (Settings → Webhooks) → Payload URL `<tunnel>/api/webhooks/github`,
-   content type `application/json`, secret = `GITHUB_WEBHOOK_SECRET`, event **"Workflow runs"**.
-4. During the demo, run:
+## Try it yourself (2 minutes)
 
-   ```bash
-   ./break.sh     # introduces the regression, pushes → CI fails → node pulses into the graph
+### Option A — Just run the Eval (no setup needed)
+
+1. Open **[phoenixos.onrender.com](https://phoenixos.onrender.com)**
+2. Click **Evals** in the nav
+3. Paste this PR URL and click **Run Eval**:
    ```
-
-5. To re-run the demo, restore green:
-
-   ```bash
-   ./reset.sh
+   https://github.com/ddevilz/phoenix-demo/pull/2
    ```
+4. Watch 3 NVIDIA NIM judges score the diff in parallel (~30s)
+5. See **Trust Score + BLOCK verdict + flags** appear
+6. Click **Trust Ledger** to see the immutable result entry
 
-## Files
+### Option B — Trigger the full live flow (requires repo access)
 
-- `src/transfer.py` — transfer layer with a 30s budget (`break.sh` flips elapsed 12 → 42).
-- `tests/test_transfer.py` — asserts elapsed ≤ 30s.
-- `.github/workflows/ci.yml` — runs `pytest` on every push/PR.
+```bash
+git clone https://github.com/ddevilz/phoenix-demo
+cd phoenix-demo
+
+./pr.sh        # creates branch + PR with 3 regressions, prints PR URL
+```
+
+Then:
+1. Paste the printed PR URL into **phoenixos.onrender.com/evals** → Run Eval
+2. Switch to **Memory Graph** — new node appears within ~45s of CI finishing
+3. Run `./reset.sh` to close the PR, delete the branch, and restore green
+
+---
+
+## What the regressions do
+
+| File | Change | Test that fails |
+|------|--------|-----------------|
+| `src/auth.py` | HMAC prefix `sha256=` → `sha1=` | `test_signature_has_sha256_prefix`, `test_signature_length` |
+| `src/connection.py` | `MAX_CONNECTIONS = 10` → `0` | `test_connection_pool_limit` |
+| `src/transfer.py` | `return 12` → `return 42` | `test_transfer_within_budget` |
+
+These look like performance optimizations in the diff. PhoenixOS catches all three.
+
+---
+
+## What PhoenixOS does with the failure
+
+1. GitHub Actions runs `pytest` → tests fail
+2. CI posts the log tail to PhoenixOS with an HMAC-signed webhook
+3. NVIDIA NIM (minimax-m2.7) extracts a `FailureSignature` from the log
+4. NIM (nv-embed-v1) computes a 1024-dim embedding; cosine similarity finds related past failures
+5. Neo4j Aura stores the new node + `SIMILAR_TO` edges to the existing auth/pool cluster
+6. PageRank recomputes fragility scores — node color updates on the live graph
+
+---
+
+## Scripts
+
+```bash
+./pr.sh      # create branch + PR with regressions → prints PR URL
+./break.sh   # push regressions directly to main (no PR)
+./reset.sh   # restore main to green, close PR, delete branch
+```
+
+Adding a new regression: edit `lib/regressions.sh` only — all three scripts source it.
